@@ -39,9 +39,9 @@ app.post("/generate-pdf", async (req, res) => {
     // Add font support matching the template exactly
     await page.addStyleTag({
       content: `
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Amiri+Quran:wght@400;700&family=Poppins:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Amiri+Quran:wght@400;700&display=swap');
         body { 
-          font-family: 'Poppins', sans-serif; 
+          font-family: 'IBM Plex Sans Arabic', sans-serif; 
         }
         [dir="rtl"] {
           direction: rtl;
@@ -98,5 +98,6 @@ app.post("/generate-pdf", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 PDF Server running on port ${PORT}`));
+
 
 
