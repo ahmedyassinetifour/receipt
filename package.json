@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "postinstall": "yarn playwright install"
+    "build": "npx playwright install-deps && npx playwright install"
   },
   "dependencies": {
     "express": "^4.19.0",
