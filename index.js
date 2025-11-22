@@ -4,39 +4,52 @@ import { chromium } from "playwright";
 
 const app = express();
 
-// Enable CORS for Angular app
+// ---------- LAUNCH CHROMIUM ONCE ----------
+let browser;
+
+(async () => {
+  try {
+    console.log("Launching Chromium (one-time startup)...");
+    browser = await chromium.launch({
+      headless: true,
+    });
+    console.log("Chromium launched and ready.");
+  } catch (err) {
+    console.error("Failed to launch Chromium:", err);
+  }
+})();
+
+// ---------- CORS ----------
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
-  if (req.method === 'OPTIONS') {
-    res.sendStatus(200);
-  } else {
-    next();
-  }
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
 });
 
 app.use(bodyParser.json({ limit: "5mb" }));
 
+// ---------- PDF ENDPOINT ----------
 app.post("/generate-pdf", async (req, res) => {
   try {
     const { html } = req.body;
     if (!html) return res.status(400).json({ error: "Missing HTML" });
 
-    console.log("Starting PDF generation...");
-    console.log("HTML content length:", html.length);
-    console.log("Contains RTL:", html.includes('dir="rtl"'));
+    if (!browser) {
+      console.error("Browser not ready yet!");
+      return res.status(503).json({ error: "PDF engine not ready. Try again in a moment." });
+    }
 
-    const browser = await chromium.launch({
-      headless: true,
-    });
+    console.log("Generating PDF...");
 
     const page = await browser.newPage();
 
+    // Load HTML
     await page.setContent(html, { waitUntil: "networkidle" });
 
-    // Add font support matching the template exactly
+    // Inject fonts + RTL fixes
     await page.addStyleTag({
       content: `
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Amiri+Quran:wght@400;700&display=swap');
@@ -53,22 +66,10 @@ app.post("/generate-pdf", async (req, res) => {
       `,
     });
 
-    // Wait for fonts to load
-    await page.waitForTimeout(1000);
-    
-    // Check if fonts are loaded
-    const fontCheck = await page.evaluate(() => {
-      const testEl = document.createElement('div');
-      testEl.style.fontFamily = 'Amiri Quran, serif';
-      testEl.textContent = 'اختبار';
-      document.body.appendChild(testEl);
-      const computedStyle = window.getComputedStyle(testEl);
-      const fontFamily = computedStyle.fontFamily;
-      document.body.removeChild(testEl);
-      return fontFamily;
-    });
-    console.log("Font check result:", fontCheck);
+    // Give fonts a moment
+    await page.waitForTimeout(500);
 
+    // Generate PDF
     const pdfBuffer = await page.pdf({
       format: "A4",
       printBackground: true,
@@ -80,24 +81,24 @@ app.post("/generate-pdf", async (req, res) => {
       }
     });
 
-    await browser.close();
+    await page.close();
 
-    console.log("PDF generated successfully!");
+    console.log("PDF generation complete.");
 
+    // Send PDF
     res.set({
       "Content-Type": "application/pdf",
       "Content-Disposition": "inline; filename=receipt.pdf",
     });
 
     res.send(pdfBuffer);
+
   } catch (error) {
     console.error("PDF generation failed:", error);
     res.status(500).json({ error: "PDF generation failed", details: error.message });
   }
 });
 
+// ---------- SERVER ----------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 PDF Server running on port ${PORT}`));
-
-
-
